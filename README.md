@@ -4,8 +4,8 @@ Reclaims disk space from things that pile up during development and are hard to 
 
 | What | Deleted when |
 |---|---|
-| Cargo `target/`, .NET `bin/` and `obj/`, `node_modules/`, any directory with a `CACHEDIR.TAG` | Not touched for 14 days and no process holds a file in it |
-| Git worktrees (manual, `.worktrees/`, `.claude/worktrees/`, Cursor) | Idle for 7 days, not locked, no process in it, no uncommitted or untracked changes, only rebuildable ignored files, and every commit is on a remote or in a merged or closed pull request |
+| Cargo `target/`, .NET `bin/` and `obj/`, `node_modules/`, any directory with a `CACHEDIR.TAG` | Not touched for 14 days, no process holds a file in it, and git does not track or see an unignored file in it |
+| Git worktrees (manual, `.worktrees/`, `.claude/worktrees/`, Cursor) | Idle for 7 days, not locked, no process in it, no uncommitted or untracked changes, only rebuildable ignored files, every commit is on a remote or in a merged or closed pull request, and every branch and stash of its submodules is on a remote |
 | Treehouse pool worktrees | Treehouse itself decides (`treehouse prune --all --yes`) |
 | Docker | Unused volumes at once; unused images and build cache after 7 days |
 
@@ -14,6 +14,8 @@ After 30 idle days it is reported as needing a decision.
 
 A build output counts as used when a file in it was written or read, or when its project folder was edited.
 Reads come from file access times: with the `relatime` mount option the kernel records a read at most once a day, which is enough to see `npm run dev` or a running binary.
+Git's own files (`.git`, `.gitignore` and similar) do not count, because the git commands that reclaim runs read them.
+A worktree that git lists but cannot find is left alone: reclaim does not run `git worktree prune`, which would delete its index and HEAD.
 
 "In use" means a process has its working directory, its executable or a memory-mapped file inside the path.
 Idle time comes from modification times: of the build output tree, and of the worktree directory and its git `HEAD`, index and reflog.

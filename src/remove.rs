@@ -45,7 +45,6 @@ pub fn remove(config: &Config, path: &Path, accepted: &str) -> Result<()> {
         bail!("not removed, it changed since the scan: {current}");
     }
     worktrees::force_remove(&repo, &path)?;
-    worktrees::prune(&repo)?;
     snapshot::forget_decision(&dir, &path)?;
     println!("removed {} ({current})", config::display(&path));
     Ok(())

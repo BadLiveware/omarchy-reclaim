@@ -10,7 +10,6 @@ CPUSchedulingPolicy=idle
 IOSchedulingClass=idle
 
 NoNewPrivileges=yes
-PrivateTmp=yes
 ProtectSystem=strict
 ReadWritePaths=%h %t
 LockPersonality=yes

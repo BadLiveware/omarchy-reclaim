@@ -18,7 +18,6 @@ pub struct Context<'a> {
 
 pub struct Plan {
     pub candidates: Vec<Candidate>,
-    pub repos: Vec<PathBuf>,
 }
 
 impl Plan {
@@ -43,16 +42,13 @@ impl Plan {
             .filter(|candidate| matches!(candidate.verdict, Verdict::Delete(_)))
             .map(|candidate| candidate.path.clone())
             .collect();
-        candidates.extend(
-            scan.outputs
-                .into_iter()
-                .filter(|output| !doomed.iter().any(|dir| output.path.starts_with(dir)))
-                .map(|output| outputs::judge(output, &ctx)),
-        );
-        Ok(Self {
-            candidates,
-            repos: scan.repos,
-        })
+        let outputs = scan
+            .outputs
+            .into_iter()
+            .filter(|output| !doomed.iter().any(|dir| output.path.starts_with(dir)))
+            .collect();
+        candidates.extend(outputs::judge_all(outputs, &ctx));
+        Ok(Self { candidates })
     }
 }
 

@@ -200,7 +200,28 @@ fn build_outputs(sandbox: &Sandbox) -> Vec<(PathBuf, bool)> {
     write(&code.join("edited/package.json"), "{}");
     write(&code.join("edited/node_modules/react/package.json"), "{}");
     write(&code.join("edited/src/app.ts"), "export {}");
-    for project in ["rusty", "web", "svc", "tools", "fresh", "served", "edited"] {
+    let rooted = code.join("rooted");
+    write(&rooted.join(".gitignore"), "target/\nnode_modules/\n");
+    write(&rooted.join("Cargo.toml"), "[package]\n");
+    write(&rooted.join("fixture/package.json"), "{}");
+    write(
+        &rooted.join("fixture/node_modules/dep/index.js"),
+        "committed fixture",
+    );
+    write(&rooted.join("tool/tool.csproj"), "<Project/>");
+    git(&rooted, &["init", "-b", "main"]);
+    git(&rooted, &["add", "."]);
+    git(&rooted, &["add", "--force", "fixture/node_modules"]);
+    git(&rooted, &["commit", "-m", "init"]);
+    write(&rooted.join("target/CACHEDIR.TAG"), CARGO_TAG);
+    write(&rooted.join("target/debug/rooted"), "x");
+    write(
+        &rooted.join("tool/bin/notes.txt"),
+        "neither committed nor ignored",
+    );
+    for project in [
+        "rusty", "web", "svc", "tools", "fresh", "served", "edited", "rooted",
+    ] {
         age(&code.join(project));
     }
     write(
@@ -223,6 +244,9 @@ fn build_outputs(sandbox: &Sandbox) -> Vec<(PathBuf, bool)> {
         (code.join("svc/obj"), true),
         (code.join("tools/bin"), false),
         (code.join("fresh/target"), false),
+        (rooted.join("target"), true),
+        (rooted.join("fixture/node_modules"), false),
+        (rooted.join("tool/bin"), false),
     ]
 }
 
@@ -261,6 +285,14 @@ fn run_deletes_only_what_is_safe_and_status_deletes_nothing() {
     assert!(status.contains("every commit is on a remote"), "{status}");
     assert!(status.contains("in use by sleep"), "{status}");
     assert!(status.contains("ignored files: .env"), "{status}");
+    assert!(
+        status.contains("git tracks or does not ignore dep/index.js"),
+        "{status}"
+    );
+    assert!(
+        status.contains("git tracks or does not ignore notes.txt"),
+        "{status}"
+    );
 
     sandbox.reclaim(&["scan"]);
     let plan = sandbox.state_json("plan.json");
@@ -390,7 +422,7 @@ fn worktrees_with_submodules_are_checked_inside_and_removed() {
     git(&repo, &["push", "-u", "origin", "main"]);
 
     let worktree = |name: &str| repo.join(".worktrees").join(name);
-    for name in ["clean", "secret"] {
+    for name in ["clean", "secret", "branched"] {
         git(
             &repo,
             &[
@@ -409,6 +441,12 @@ fn worktrees_with_submodules_are_checked_inside_and_removed() {
         &worktree("secret").join("vendor/lib/.env"),
         "TOKEN=only-copy\n",
     );
+    let lib = worktree("branched").join("vendor/lib");
+    git(&lib, &["checkout", "-b", "local-work"]);
+    write(&lib.join("wip.rs"), "only on a local branch\n");
+    git(&lib, &["add", "wip.rs"]);
+    git(&lib, &["commit", "-m", "wip"]);
+    git(&lib, &["checkout", "--detach", "HEAD~1"]);
     age(&repo.join(".worktrees"));
     age(&repo.join(".git/worktrees"));
 
@@ -416,6 +454,10 @@ fn worktrees_with_submodules_are_checked_inside_and_removed() {
     let status = String::from_utf8_lossy(&status.stdout);
     assert!(
         status.contains("vendor/lib: ignored files: .env"),
+        "{status}"
+    );
+    assert!(
+        status.contains("vendor/lib: 1 commit on no remote"),
         "{status}"
     );
 
@@ -427,6 +469,10 @@ fn worktrees_with_submodules_are_checked_inside_and_removed() {
     assert!(
         worktree("secret").join("vendor/lib/.env").exists(),
         "work inside a submodule is kept"
+    );
+    assert!(
+        worktree("branched").exists(),
+        "a submodule commit on a local branch is kept with its worktree"
     );
     assert_eq!(sandbox.state_json("last-run.json")["failed"], 0);
 }
@@ -519,4 +565,42 @@ fn remove_deletes_an_accepted_decision_and_refuses_a_changed_one() {
     assert!(!out.status.success());
     assert!(String::from_utf8_lossy(&out.stderr).contains("changed since the scan"));
     assert!(worktree("changed").join("notes.txt").exists());
+}
+
+/// A worktree directory that a run cannot see (moved, in a private /tmp, on an unmounted disk)
+/// keeps its git metadata: the index, HEAD and submodule git directories live there.
+#[test]
+fn a_worktree_git_cannot_find_is_not_forgotten() {
+    let sandbox = Sandbox::new();
+    let repo = sandbox.code().join("app");
+    fs::create_dir_all(&repo).unwrap();
+    git(&repo, &["init", "-b", "main"]);
+    write(&repo.join("README"), "app\n");
+    git(&repo, &["add", "."]);
+    git(&repo, &["commit", "-m", "init"]);
+    let worktree = repo.join(".worktrees/away");
+    git(
+        &repo,
+        &["worktree", "add", "-b", "away", worktree.to_str().unwrap()],
+    );
+    write(&worktree.join("staged"), "only in the index\n");
+    git(&worktree, &["add", "staged"]);
+    let elsewhere = sandbox.dir.path().join("away");
+    fs::rename(&worktree, &elsewhere).unwrap();
+
+    sandbox.reclaim(&["run"]);
+
+    fs::rename(&elsewhere, &worktree).unwrap();
+    let status = Command::new("git")
+        .arg("-C")
+        .arg(&worktree)
+        .args(["status", "--porcelain"])
+        .output()
+        .unwrap();
+    assert!(
+        status.status.success(),
+        "{}",
+        String::from_utf8_lossy(&status.stderr)
+    );
+    assert_eq!(String::from_utf8_lossy(&status.stdout), "A  staged\n");
 }

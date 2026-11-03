@@ -5,6 +5,7 @@ use anyhow::{Context as _, Result};
 
 use crate::model::{Candidate, Kind, Removal, Verdict};
 use crate::plan::Context;
+use crate::text::{counted, sample};
 use crate::{activity, command, github, scan};
 
 const BRANCH_PREFIX: &str = "refs/heads/";
@@ -14,7 +15,7 @@ const TREEHOUSE_DIR: &str = ".treehouse";
 const IGNORED_PREFIX: &str = "!! ";
 const GITMODULES: &str = ".gitmodules";
 const BLOCKER_SEPARATOR: &str = "; ";
-const SAMPLE_SIZE: usize = 3;
+const STASH_REF: &str = "--glob=refs/stash";
 
 #[derive(Debug, Default)]
 struct Linked {
@@ -39,8 +40,9 @@ pub fn candidates(repo: &Path, ctx: &Context) -> Result<Vec<Candidate>> {
         .collect())
 }
 
-/// Git refuses to remove a worktree with submodules unless forced. `landing` has checked every
-/// submodule by then, so forcing loses nothing.
+/// Git refuses to remove a worktree with submodules unless forced. Forcing also deletes the
+/// submodules' git directories, which live in the worktree's admin directory. `landing` has
+/// checked every submodule's files, branches and stash by then, so forcing loses nothing.
 pub fn remove(repo: &Path, worktree: &Path) -> Result<()> {
     let path = worktree.to_string_lossy();
     let mut args = vec!["worktree", "remove"];
@@ -70,12 +72,6 @@ pub fn main_repo(worktree: &Path) -> Result<PathBuf> {
         .parent()
         .map(Path::to_path_buf)
         .with_context(|| format!("no repository above {}", common.display()))
-}
-
-/// Forgets worktrees whose directory is gone.
-pub fn prune(repo: &Path) -> Result<()> {
-    command::git(repo, &["worktree", "prune"])?;
-    Ok(())
 }
 
 /// The first block is the main working tree, which is never a candidate.
@@ -166,7 +162,7 @@ fn landing(linked: &Linked, regenerable: &[String]) -> Result<Landing> {
             .display()
             .to_string();
         let mut found = local_only_work(&submodule, regenerable)?;
-        let unpushed = unpushed(&submodule)?;
+        let unpushed = unpushed_on_any_branch(&submodule)?;
         if unpushed > 0 {
             found.push(format!("{} on no remote", counted(unpushed, "commit")));
         }
@@ -238,9 +234,21 @@ fn local_only_work(dir: &Path, regenerable: &[String]) -> Result<Vec<String>> {
     Ok(blockers)
 }
 
+/// The branch survives in the main repository when its worktree is removed, so only HEAD counts.
 fn unpushed(dir: &Path) -> Result<u64> {
-    let count = command::git(dir, &["rev-list", "--count", "HEAD", "--not", "--remotes"])?;
-    Ok(count.trim().parse()?)
+    count_unpushed(dir, &["HEAD"])
+}
+
+/// A submodule's branches and stash are deleted with the worktree that holds them.
+fn unpushed_on_any_branch(dir: &Path) -> Result<u64> {
+    count_unpushed(dir, &["HEAD", "--branches", STASH_REF])
+}
+
+fn count_unpushed(dir: &Path, refs: &[&str]) -> Result<u64> {
+    let mut args = vec!["rev-list", "--count"];
+    args.extend(refs);
+    args.extend(["--not", "--remotes"]);
+    Ok(command::git(dir, &args)?.trim().parse()?)
 }
 
 /// Checked-out submodules, nested ones included. Submodules that were never initialised hold no files.
@@ -259,26 +267,10 @@ fn has_submodules(worktree: &Path) -> bool {
     worktree.join(GITMODULES).is_file()
 }
 
-fn counted(count: u64, noun: &str) -> String {
-    if count == 1 {
-        return format!("1 {noun}");
-    }
-    format!("{count} {noun}s")
-}
-
 fn is_regenerable(worktree: &Path, ignored: &str, regenerable: &[String]) -> bool {
     let relative = ignored.trim_end_matches('/');
     let name = relative.rsplit('/').next().unwrap_or(relative);
     regenerable.iter().any(|known| known == name) || scan::is_cache_dir(&worktree.join(relative))
-}
-
-fn sample(paths: &[&str]) -> String {
-    let shown = paths[..paths.len().min(SAMPLE_SIZE)].join(", ");
-    let rest = paths.len().saturating_sub(SAMPLE_SIZE);
-    if rest == 0 {
-        return shown;
-    }
-    format!("{shown} and {rest} more")
 }
 
 /// Git rewrites the worktree's HEAD, index or reflog on almost every command, so their times show recent use.

@@ -15,6 +15,7 @@ mod scan;
 mod snapshot;
 mod state;
 mod status;
+mod text;
 mod treehouse;
 mod worktrees;
 

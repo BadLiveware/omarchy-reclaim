@@ -4,13 +4,14 @@
 roots = ["~/code"]
 
 # Build outputs (Cargo target/, .NET bin/ and obj/, node_modules/, CACHEDIR.TAG dirs)
-# not touched for this many days are deleted.
+# not touched for this many days are deleted, unless git tracks or does not ignore a file in them.
 build_output_idle_days = 14
 
 # A worktree is deleted when it has been idle this long and is provably safe:
 # not locked, no process uses it, no uncommitted or untracked changes,
 # only rebuildable ignored files, and every commit is on a remote
 # (or a merged/closed pull request has exactly this commit as head).
+# In submodules, every branch and the stash must also be on a remote.
 worktree_idle_days = 7
 
 # Worktrees that are not safe to delete and idle this long are reported as needing a decision.

@@ -60,15 +60,9 @@ pub fn run(config: &Config, only_if_low_disk: bool) -> Result<()> {
     }
     println!("disk before: {}", before.summary());
 
-    let Plan { candidates, repos } = Plan::build(config)?;
     let mut outcome = Outcome::default();
-    for candidate in candidates {
+    for candidate in Plan::build(config)?.candidates {
         apply(candidate, &mut outcome);
-    }
-    for repo in &repos {
-        if let Err(error) = worktrees::prune(repo) {
-            eprintln!("git worktree prune in {}: {error:#}", config::display(repo));
-        }
     }
     if config.treehouse {
         match treehouse::reclaim() {
