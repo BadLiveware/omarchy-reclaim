@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "fl.reclaim",
+  "name": "Reclaim",
+  "version": "1.0.0",
+  "author": "fl",
+  "license": "MIT",
+  "description": "Free disk space, what reclaim would delete, and worktrees that need a decision.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Reclaim",
+    "description": "Free disk space, reclaimable build outputs and worktrees, and the reclaim schedule.",
+    "category": "System",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}

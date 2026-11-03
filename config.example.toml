@@ -1,0 +1,43 @@
+# All keys are optional. The values below are the defaults.
+
+# Directories scanned for build outputs and git repositories.
+roots = ["~/code"]
+
+# Build outputs (Cargo target/, .NET bin/ and obj/, node_modules/, CACHEDIR.TAG dirs)
+# not touched for this many days are deleted.
+build_output_idle_days = 14
+
+# A worktree is deleted when it has been idle this long and is provably safe:
+# not locked, no process uses it, no uncommitted or untracked changes,
+# only rebuildable ignored files, and every commit is on a remote
+# (or a merged/closed pull request has exactly this commit as head).
+worktree_idle_days = 7
+
+# Worktrees that are not safe to delete and idle this long are reported as needing a decision.
+needs_decision_idle_days = 30
+
+# Ignored names that can be rebuilt. Any other ignored path keeps the worktree.
+regenerable_ignored = [
+  ".cache", ".gradle", ".next", ".pytest_cache", ".svelte-kit", ".terraform",
+  ".terraform.lock.hcl", ".terragrunt-cache", ".turbo", ".venv", "__pycache__",
+  "bin", "build", "coverage", "dist", "node_modules", "obj", "out", "target",
+  "test-results", "TestResults", "tsconfig.tsbuildinfo",
+]
+
+# `run --only-if-low-disk` (every 15 minutes) acts only below this much free space.
+low_disk_free_percent = 15
+low_disk_notify_every_hours = 6
+# While space stays low, a full scan finds nothing new and only loads the disk.
+# The check runs again after this many hours, or once free space has fallen by this
+# percentage of the disk since the last run.
+low_disk_rerun_after_hours = 6
+low_disk_rerun_drop_percent = 1
+
+# Unused Docker volumes are always deleted. Unused images and build cache wait this long.
+docker = true
+docker_image_idle_hours = 168
+
+# Let treehouse prune its own pools (merged, clean, idle and not leased).
+treehouse = true
+
+notify = true

@@ -1,0 +1,19 @@
+[Unit]
+Description=Scan for reclaimable disk space without deleting anything
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/reclaim scan
+Environment=DOCKER_HOST=unix://%t/docker.sock
+Nice=19
+CPUSchedulingPolicy=idle
+IOSchedulingClass=idle
+
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=%h %t
+LockPersonality=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+SystemCallArchitectures=native
