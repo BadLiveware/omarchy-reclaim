@@ -37,6 +37,8 @@ Configuration: `~/.config/reclaim/config.toml`, see `config.example.toml`.
 
 ## Omarchy bar widget
 
+![The reclaim panel in the Omarchy bar: disk usage, the last scan and run, and what is reclaimable](docs/widget.png)
+
 ```sh
 make install-widget
 omarchy plugin enable fl.reclaim --section right
